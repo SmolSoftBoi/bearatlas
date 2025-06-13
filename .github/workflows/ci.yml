@@ -10,6 +10,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+      - name: Install dependencies
+        run: yarn install --immutable
+      - name: Build
+        run: |
+          yarn web build
+          yarn api build
+          docker compose build web
   lint:
     runs-on: ubuntu-latest
     steps:

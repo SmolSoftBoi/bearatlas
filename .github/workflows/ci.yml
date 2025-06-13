@@ -45,7 +45,7 @@ jobs:
           fi
 
   test:
-    needs: [build, lint]
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -64,7 +64,7 @@ jobs:
           fi
 
   e2e:
-    needs: [build, lint]
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -13,6 +13,7 @@
 Run the following once the container is ready:
 
 ```bash
+# Uses docker-compose.yml at repository root
 docker compose pull --quiet
 docker compose up -d db redis
 ```

@@ -1,6 +1,6 @@
 ## Summary
 - Closes: <!-- issue # -->
-- Deployed preview: `https://bearatlas-pr-${{PR_NUMBER}}.fly.dev`
+- Deployed preview: `https://bearatlas-pr-${{PR_NUMBER}}.fly.dev` *(replace PR_NUMBER with the PR number)*
 
 ### Screenshots / Screencast
 <!-- Drag & drop or link -->

@@ -1,0 +1,9 @@
+{
+  "name": "BearAtlas Dev Container",
+  "features": {
+    "ghcr.io/devcontainers/features/node:20": {},
+    "ghcr.io/devcontainers/features/docker-in-docker": {}
+  },
+  "forwardPorts": [3000],
+  "postCreateCommand": "yarn install --immutable"
+}

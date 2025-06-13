@@ -6,8 +6,6 @@ node_modules/
 docker-data/
 
 # Build artifacts
-web/.next/
-web/dist/
-web/build/
-api/dist/
-api/build/
+**/.next/
+**/dist/
+**/build/

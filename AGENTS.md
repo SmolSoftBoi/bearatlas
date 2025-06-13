@@ -1,4 +1,4 @@
-extends: "~/.codex/AGENTS.md"
+extends: "./.codex/AGENTS.md"
 
 ## Environment
 install: |

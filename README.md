@@ -2,7 +2,7 @@
 
 ## Required Tools
 
-- **Node.js** 18+
+- **Node.js** 22
 - **Yarn** 4
 - **Docker** with Docker Compose
 

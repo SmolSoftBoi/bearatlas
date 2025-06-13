@@ -1,0 +1,11 @@
+# Node
+node_modules/
+.env
+
+# Docker
+docker-data/
+
+# Build artifacts
+**/.next/
+**/dist/
+**/build/

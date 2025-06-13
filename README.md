@@ -1,4 +1,4 @@
-# bearatlas
+# BearAtlas
 
 ## Development Environment
 

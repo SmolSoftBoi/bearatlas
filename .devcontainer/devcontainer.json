@@ -1,7 +1,7 @@
 {
   "name": "BearAtlas Dev Container",
+  "image": "ghcr.io/devcontainers/images/node:22",
   "features": {
-    "ghcr.io/devcontainers/features/node:22": {},
     "ghcr.io/devcontainers/features/docker-in-docker": {}
   },
   "forwardPorts": [3000],

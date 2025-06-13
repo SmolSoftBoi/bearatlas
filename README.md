@@ -25,6 +25,17 @@ docker compose up -d db redis
 
 The `db` and `redis` containers from `docker-compose.yml` will now be running locally.
 
+### Local Setup
+
+If you cannot use the Dev Container, install **Node.js** 22 and **Yarn** 4 locally.
+Then run:
+
+```bash
+yarn install --immutable
+docker compose pull --quiet
+docker compose up -d db redis
+```
+
 ## License
 
 BearAtlas is released under the MIT License.

@@ -26,6 +26,7 @@ jobs:
           yarn api build
           docker compose build web
   lint:
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +45,7 @@ jobs:
           fi
 
   test:
-    needs: lint
+    needs: [build, lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -63,7 +64,7 @@ jobs:
           fi
 
   e2e:
-    needs: lint
+    needs: [build, lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

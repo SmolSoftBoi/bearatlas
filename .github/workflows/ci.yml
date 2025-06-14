@@ -18,8 +18,34 @@ jobs:
         with:
           node-version: 22
           cache: yarn
+      - name: Restore node_modules
+        id: node-cache
+    needs: [build, lint]
+        with:
+    needs: [build, lint]
+          key: node-modules-${{ hashFiles('**/yarn.lock') }}
       - name: Install dependencies
+        if: steps.node-cache.outputs.cache-hit != 'true'
         run: yarn install --immutable
+      - name: Build
+        run: |
+          yarn web build
+          yarn api build
+          docker compose build web
+  lint:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+      - name: Restore node_modules
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('**/yarn.lock') }}
       - name: Lint
         run: |
           if [ -f package.json ] && node -e "p=require('./package.json');process.exit(!(p.scripts && p.scripts.lint))"; then
@@ -27,6 +53,21 @@ jobs:
           else
             echo 'skip lint'
           fi
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+      - name: Restore node_modules
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('**/yarn.lock') }}
       - name: Test
         run: |
           if [ -f package.json ] && node -e "p=require('./package.json');process.exit(!(p.scripts && p.scripts.test))"; then
@@ -34,6 +75,21 @@ jobs:
           else
             echo 'skip test'
           fi
+
+  e2e:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+      - name: Restore node_modules
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('**/yarn.lock') }}
       - name: E2E
         run: |
           if [ -f package.json ] && node -e "p=require('./package.json');process.exit(!(p.scripts && p.scripts.e2e))"; then

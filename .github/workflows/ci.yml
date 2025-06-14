@@ -20,9 +20,9 @@ jobs:
           cache: yarn
       - name: Restore node_modules
         id: node-cache
-        uses: actions/cache@v3
+    needs: [build, lint]
         with:
-          path: node_modules
+    needs: [build, lint]
           key: node-modules-${{ hashFiles('**/yarn.lock') }}
       - name: Install dependencies
         if: steps.node-cache.outputs.cache-hit != 'true'

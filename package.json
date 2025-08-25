@@ -1,0 +1,29 @@
+{
+  "name": "bearatlas",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "cd apps/web && yarn dev",
+    "worker": "cd packages/worker && yarn start",
+    "build": "yarn workspaces run build",
+    "lint": "yarn workspaces run lint",
+    "format": "prettier --write .",
+    "prisma:migrate": "cd apps/web && yarn prisma migrate dev",
+    "prisma:generate": "cd apps/web && yarn prisma generate",
+    "seed": "cd apps/web && yarn prisma db seed",
+    "typesense:sync-schema": "cd apps/web && yarn tsx scripts/typesense-sync-schema.ts",
+    "ingest": "cd packages/worker && yarn tsx src/ingest.ts",
+    "test": "yarn workspaces run test",
+    "test:e2e": "cd apps/web && yarn playwright test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "prettier": "^3.2.0",
+    "typescript": "^5.4.0"
+  },
+  "packageManager": "yarn@4.0.0"
+}

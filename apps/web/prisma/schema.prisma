@@ -1,0 +1,68 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum EventType {
+  RUN
+  WEEK
+  CRUISE
+  RESORT
+  PARTY
+}
+
+enum SizeBand {
+  S
+  M
+  L
+  XL
+}
+
+enum PriceBand {
+  £
+  ££
+  £££
+}
+
+model Event {
+  id              String   @id @default(cuid())
+  name            String
+  type            EventType
+  startsAt        DateTime
+  endsAt          DateTime
+  durationDays    Int
+  country         String
+  region          String?
+  city            String?
+  latitude        Float?
+  longitude       Float?
+  venues          String[]    // venue names
+  estSize         SizeBand?
+  priceBand       PriceBand?
+  vibe            String[]    // e.g. ["dance","relax","leather"]
+  accessibility   Json?       // { wheelchairAccess, stepFree }
+  clothingOptional Boolean?
+  amenities       String[]    // ["sauna","pool",...]
+  links           Json        // { official, tickets, socials }
+  source          Source      @relation(fields: [sourceId], references: [id])
+  sourceId        String
+  hash            String      @unique
+  lastChecked     DateTime    @default(now())
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model Source {
+  id        String  @id @default(cuid())
+  code      String  @unique  // e.g., "MBH","BEARCAL","GT4U","OPR-BEARCRUISE"
+  name      String
+  url       String
+  enabled   Boolean @default(true)
+  events    Event[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - .:/workspace
+      - /workspace/node_modules
+    depends_on:
+      - db
+      - redis
+      - typesense
+    secrets:
+      - apple_maps_key
+    networks:
+      - bearatlas
+
+  worker:
+    build:
+      context: .
+      dockerfile: packages/worker/Dockerfile
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - .:/workspace
+      - /workspace/node_modules
+    depends_on:
+      - db
+      - redis
+      - typesense
+    networks:
+      - bearatlas
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: bearatlas
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - bearatlas
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - bearatlas
+
+  typesense:
+    image: typesense/typesense:0.25.2
+    ports:
+      - "8108:8108"
+    volumes:
+      - typesense_data:/data
+    environment:
+      - TYPESENSE_API_KEY=devkey
+      - TYPESENSE_DATA_DIR=/data
+    command: --data-dir /data --api-key devkey --enable-cors
+    networks:
+      - bearatlas
+
+volumes:
+  postgres_data:
+  redis_data:
+  typesense_data:
+
+secrets:
+  apple_maps_key:
+    file: .secrets/AuthKey_MapKitJS.p8
+
+networks:
+  bearatlas:
+    driver: bridge

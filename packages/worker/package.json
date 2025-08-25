@@ -1,0 +1,24 @@
+{
+  "name": "@bearatlas/worker",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.10.0",
+    "bullmq": "^5.0.0",
+    "redis": "^4.6.0",
+    "typesense-instantsearch-adapter": "^2.0.0",
+    "crypto": "^1.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.4.0",
+    "tsx": "^4.7.0",
+    "vitest": "^1.3.0"
+  }
+}

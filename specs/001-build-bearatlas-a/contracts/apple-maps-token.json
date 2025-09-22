@@ -1,0 +1,84 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "BearAtlas Apple Maps Token API",
+    "version": "1.0.0",
+    "description": "API for generating Apple MapKit JS tokens"
+  },
+  "paths": {
+    "/api/apple-maps-token": {
+      "get": {
+        "summary": "Generate Apple MapKit JS token",
+        "description": "Generate a server-minted ES256 JWT token for Apple MapKit JS authentication",
+        "responses": {
+          "200": {
+            "description": "Successfully generated token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string",
+                      "description": "JWT token for Apple MapKit JS"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "Token expiration timestamp"
+                    }
+                  },
+                  "required": ["token", "expiresAt"]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error - unable to generate token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable - Apple Maps not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

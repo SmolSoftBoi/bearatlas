@@ -1,0 +1,547 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "BearAtlas Events Search API",
+    "version": "1.0.0",
+    "description": "API for searching and filtering travel events"
+  },
+  "paths": {
+    "/api/events": {
+      "get": {
+        "summary": "Search events with filters",
+        "description": "Search for events with comprehensive filtering options",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Search query string",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dateStart",
+            "in": "query",
+            "description": "Start date filter (ISO 8601)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "dateEnd",
+            "in": "query",
+            "description": "End date filter (ISO 8601)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "description": "Country code filter",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            }
+          },
+          {
+            "name": "region",
+            "in": "query",
+            "description": "Region/state filter",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "description": "City filter",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Event type filter",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["RUN", "WEEK", "CRUISE", "RESORT", "PARTY"]
+              }
+            }
+          },
+          {
+            "name": "sizeBand",
+            "in": "query",
+            "description": "Size band filter",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["SMALL", "MEDIUM", "LARGE", "MASSIVE"]
+              }
+            }
+          },
+          {
+            "name": "priceBand",
+            "in": "query",
+            "description": "Price band filter",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["BUDGET", "MID_RANGE", "PREMIUM", "LUXURY"]
+              }
+            }
+          },
+          {
+            "name": "vibe",
+            "in": "query",
+            "description": "Vibe tags filter",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["dance", "relax", "fetish", "mixed"]
+              }
+            }
+          },
+          {
+            "name": "clothingOptional",
+            "in": "query",
+            "description": "Clothing optional filter",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "amenities",
+            "in": "query",
+            "description": "Required amenities filter",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["sauna", "pool", "gym", "restaurant", "bar", "spa", "wifi", "parking"]
+              }
+            }
+          },
+          {
+            "name": "accessibility",
+            "in": "query",
+            "description": "Accessibility requirements filter",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["wheelchair", "step_free", "elevator", "accessible_bathroom", "hearing_loop", "braille"]
+              }
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number for pagination",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Number of results per page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort order",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["startsAt", "name", "createdAt"],
+              "default": "startsAt"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "Sort direction",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "asc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Event"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    },
+                    "facets": {
+                      "$ref": "#/components/schemas/Facets"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "description": "Total number of matching events"
+                    }
+                  },
+                  "required": ["events", "pagination", "total"]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Event": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["RUN", "WEEK", "CRUISE", "RESORT", "PARTY"]
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "durationDays": {
+            "type": "integer"
+          },
+          "country": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string",
+            "nullable": true
+          },
+          "city": {
+            "type": "string",
+            "nullable": true
+          },
+          "latitude": {
+            "type": "number",
+            "nullable": true
+          },
+          "longitude": {
+            "type": "number",
+            "nullable": true
+          },
+          "venues": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "string"
+                },
+                "latitude": {
+                  "type": "number"
+                },
+                "longitude": {
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "estSize": {
+            "type": "string",
+            "enum": ["SMALL", "MEDIUM", "LARGE", "MASSIVE"],
+            "nullable": true
+          },
+          "priceBand": {
+            "type": "string",
+            "enum": ["BUDGET", "MID_RANGE", "PREMIUM", "LUXURY"],
+            "nullable": true
+          },
+          "vibe": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["dance", "relax", "fetish", "mixed"]
+            }
+          },
+          "accessibility": {
+            "type": "object",
+            "properties": {
+              "wheelchair": {
+                "type": "boolean"
+              },
+              "stepFree": {
+                "type": "boolean"
+              },
+              "elevator": {
+                "type": "boolean"
+              },
+              "accessibleBathroom": {
+                "type": "boolean"
+              },
+              "hearingLoop": {
+                "type": "boolean"
+              },
+              "braille": {
+                "type": "boolean"
+              }
+            }
+          },
+          "clothingOptional": {
+            "type": "boolean"
+          },
+          "amenities": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["sauna", "pool", "gym", "restaurant", "bar", "spa", "wifi", "parking"]
+            }
+          },
+          "links": {
+            "type": "object",
+            "properties": {
+              "official": {
+                "type": "string",
+                "format": "uri"
+              },
+              "facebook": {
+                "type": "string",
+                "format": "uri"
+              },
+              "instagram": {
+                "type": "string",
+                "format": "uri"
+              },
+              "website": {
+                "type": "string",
+                "format": "uri"
+              }
+            }
+          },
+          "source": {
+            "type": "string"
+          },
+          "lastChecked": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id", "name", "type", "startsAt", "endsAt", "durationDays",
+          "country", "vibe", "accessibility", "clothingOptional", "amenities",
+          "links", "source", "lastChecked", "createdAt", "updatedAt"
+        ]
+      },
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "totalPages": {
+            "type": "integer"
+          },
+          "hasNext": {
+            "type": "boolean"
+          },
+          "hasPrev": {
+            "type": "boolean"
+          }
+        },
+        "required": ["page", "limit", "total", "totalPages", "hasNext", "hasPrev"]
+      },
+      "Facets": {
+        "type": "object",
+        "properties": {
+          "country": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "type": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "estSize": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "priceBand": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "vibe": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "amenities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": ["error", "message"]
+      }
+    }
+  }
+}

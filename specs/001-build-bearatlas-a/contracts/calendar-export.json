@@ -1,0 +1,184 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "BearAtlas Calendar Export API",
+    "version": "1.0.0",
+    "description": "API for exporting filtered events as ICS calendar files"
+  },
+  "paths": {
+    "/api/calendar": {
+      "get": {
+        "summary": "Export events as ICS calendar",
+        "description": "Export filtered events as an ICS calendar file for import into calendar applications",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Search query string",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dateStart",
+            "in": "query",
+            "description": "Start date filter (ISO 8601)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "dateEnd",
+            "in": "query",
+            "description": "End date filter (ISO 8601)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "description": "Country code filter",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Event type filter",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["RUN", "WEEK", "CRUISE", "RESORT", "PARTY"]
+              }
+            }
+          },
+          {
+            "name": "vibe",
+            "in": "query",
+            "description": "Vibe tags filter",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["dance", "relax", "fetish", "mixed"]
+              }
+            }
+          },
+          {
+            "name": "amenities",
+            "in": "query",
+            "description": "Required amenities filter",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["sauna", "pool", "gym", "restaurant", "bar", "spa", "wifi", "parking"]
+              }
+            }
+          },
+          {
+            "name": "clothingOptional",
+            "in": "query",
+            "description": "Clothing optional filter",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "accessibility",
+            "in": "query",
+            "description": "Accessibility requirements filter",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["wheelchair", "step_free", "elevator", "accessible_bathroom", "hearing_loop", "braille"]
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ICS calendar file",
+            "content": {
+              "text/calendar": {
+                "schema": {
+                  "type": "string",
+                  "description": "ICS calendar content"
+                }
+              }
+            },
+            "headers": {
+              "Content-Disposition": {
+                "description": "Attachment filename",
+                "schema": {
+                  "type": "string",
+                  "example": "attachment; filename=\"bearatlas-events.ics\""
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Source {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  url       String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events    Event[]
+
+  @@map("sources")
+}
+
+model Event {
+  id               String    @id @default(cuid())
+  name             String    @db.VarChar(255)
+  type             EventType
+  startsAt         DateTime
+  endsAt           DateTime
+  durationDays     Int
+  country          String    @db.VarChar(2)
+  region           String?   @db.VarChar(100)
+  city             String?   @db.VarChar(100)
+  latitude         Float?
+  longitude        Float?
+  venues           Json      @default("[]")
+  estSize          SizeBand?
+  priceBand        PriceBand?
+  vibe             Json      @default("[]")
+  accessibility    Json      @default("{}")
+  clothingOptional Boolean   @default(false)
+  amenities        Json      @default("[]")
+  links            Json      @default("{}")
+  source           String    @db.VarChar(50)
+  sourceId         String?
+  hash             String    @unique @db.VarChar(40)
+  lastChecked      DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  sourceRef        Source    @relation(fields: [source], references: [code])
+  crowdReports     CrowdReport[]
+
+  @@index([startsAt])
+  @@index([country])
+  @@index([type])
+  @@index([hash])
+  @@map("events")
+}
+
+model CrowdReport {
+  id        String   @id @default(cuid())
+  eventId   String
+  rating    Int
+  notes     String?
+  createdAt DateTime @default(now())
+
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("crowd_reports")
+}
+
+enum EventType {
+  RUN
+  WEEK
+  CRUISE
+  RESORT
+  PARTY
+}
+
+enum SizeBand {
+  SMALL
+  MEDIUM
+  LARGE
+  MASSIVE
+}
+
+enum PriceBand {
+  BUDGET
+  MID_RANGE
+  PREMIUM
+  LUXURY
+}

@@ -1,0 +1,31 @@
+{
+  "name": "@bearatlas/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "ts-node --transpile-only src/index.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy",
+    "prisma:push": "prisma db push",
+    "prisma:seed": "ts-node --transpile-only prisma/seed.ts",
+    "typesense:sync": "ts-node --transpile-only src/scripts/typesense-sync.ts",
+    "lint": "echo 'no lint configured'"
+  },
+  "dependencies": {
+    "@prisma/client": "5.20.0",
+    "bullmq": "5.12.2",
+    "dotenv": "16.4.5",
+    "ioredis": "5.4.1",
+    "pg": "8.13.1",
+    "typescript": "5.6.3",
+    "typesense": "1.8.2",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "prisma": "5.20.0",
+    "ts-node": "10.9.2"
+  }
+}

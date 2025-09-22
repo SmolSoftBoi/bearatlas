@@ -47,7 +47,38 @@
 ## Constitution Check
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+### Code Quality Gates
+- [ ] TypeScript strict mode enabled
+- [ ] ESLint + Prettier configuration planned
+- [ ] No JavaScript files in new code
+
+### Testing Gates
+- [ ] Vitest for unit testing planned
+- [ ] Playwright for E2E testing planned
+- [ ] API contract testing strategy defined
+
+### Accessibility Gates
+- [ ] WCAG 2.1 AA compliance planned
+- [ ] Semantic HTML structure considered
+- [ ] Keyboard navigation support planned
+
+### Performance Gates
+- [ ] Core Web Vitals budgets defined
+- [ ] Performance monitoring strategy planned
+
+### Security Gates
+- [ ] OWASP ASVS Level 1 compliance planned
+- [ ] Secret management strategy defined
+- [ ] No secrets in repository
+
+### Data Ethics Gates
+- [ ] Robots.txt compliance planned
+- [ ] Terms of Service respect planned
+- [ ] Metadata-only ingestion approach
+
+### Reliability Gates
+- [ ] Idempotent job design planned
+- [ ] Retry mechanisms with exponential backoff planned
 
 ## Project Structure
 
@@ -209,4 +240,4 @@ ios/ or android/
 - [ ] Complexity deviations documented
 
 ---
-*Based on Constitution v2.1.1 - See `/memory/constitution.md`*
+*Based on Constitution v1.0.0 - See `/memory/constitution.md`*

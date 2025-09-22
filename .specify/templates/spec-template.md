@@ -92,6 +92,8 @@ When creating this spec from a user prompt:
 - [ ] Focused on user value and business needs
 - [ ] Written for non-technical stakeholders
 - [ ] All mandatory sections completed
+- [ ] Accessibility requirements considered (WCAG 2.1 AA)
+- [ ] Performance targets specified (Core Web Vitals)
 
 ### Requirement Completeness
 - [ ] No [NEEDS CLARIFICATION] markers remain
@@ -99,6 +101,8 @@ When creating this spec from a user prompt:
 - [ ] Success criteria are measurable
 - [ ] Scope is clearly bounded
 - [ ] Dependencies and assumptions identified
+- [ ] Security requirements specified (OWASP ASVS L1)
+- [ ] Data ethics compliance planned (robots.txt, ToS)
 
 ---
 

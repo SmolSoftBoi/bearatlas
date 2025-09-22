@@ -1,0 +1,433 @@
+---
+globs: **/*.ts,**/*.tsx
+description: Performance standards and Core Web Vitals optimization
+---
+
+# Performance Standards (Core Web Vitals)
+
+## Core Web Vitals Targets
+- **LCP (Largest Contentful Paint)**: < 2.5 seconds
+- **FID (First Input Delay)**: < 100 milliseconds  
+- **CLS (Cumulative Layout Shift)**: < 0.1
+- **API Response Time**: < 200 milliseconds
+- **Page Load Time**: < 2 seconds
+
+## Next.js Performance Optimization
+
+### Image Optimization
+```tsx
+// ✅ Use Next.js Image component
+import Image from 'next/image';
+
+export function EventImage({ event }: { event: Event }) {
+  return (
+    <Image
+      src={event.imageUrl}
+      alt={`${event.name} event image`}
+      width={400}
+      height={300}
+      priority={false} // Only true for above-the-fold images
+      placeholder="blur"
+      blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
+      className="rounded-lg object-cover"
+    />
+  );
+}
+```
+
+### Code Splitting and Lazy Loading
+```tsx
+// ✅ Lazy load heavy components
+import dynamic from 'next/dynamic';
+import { Suspense } from 'react';
+
+const MapCanvas = dynamic(() => import('@/components/MapCanvas'), {
+  loading: () => <div className="h-96 bg-gray-200 animate-pulse rounded-lg" />,
+  ssr: false, // Disable SSR for client-only components
+});
+
+const TripWizard = dynamic(() => import('@/components/TripWizard'), {
+  loading: () => <div className="h-64 bg-gray-100 animate-pulse rounded-lg" />,
+});
+
+export function HomePage() {
+  return (
+    <div>
+      <Suspense fallback={<div>Loading events...</div>}>
+        <EventList />
+      </Suspense>
+      
+      <Suspense fallback={<div>Loading map...</div>}>
+        <MapCanvas />
+      </Suspense>
+    </div>
+  );
+}
+```
+
+### Data Fetching Optimization
+```tsx
+// ✅ Optimize data fetching with caching
+import { unstable_cache } from 'next/cache';
+
+// Cache expensive database queries
+const getCachedEvents = unstable_cache(
+  async (filters: EventSearchFilters) => {
+    return prisma.event.findMany({
+      where: buildWhereClause(filters),
+      include: { sourceRef: true },
+      orderBy: { startsAt: 'asc' },
+    });
+  },
+  ['events'],
+  {
+    revalidate: 300, // 5 minutes
+    tags: ['events'],
+  }
+);
+
+// ✅ Use React Query for client-side caching
+import { useQuery } from '@tanstack/react-query';
+
+export function useEvents(filters: EventSearchFilters) {
+  return useQuery({
+    queryKey: ['events', filters],
+    queryFn: () => fetchEvents(filters),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    cacheTime: 10 * 60 * 1000, // 10 minutes
+    refetchOnWindowFocus: false,
+  });
+}
+```
+
+## Database Performance
+
+### Query Optimization
+```typescript
+// ✅ Optimized database queries
+export async function findEventsOptimized(filters: EventSearchFilters) {
+  // Use select to limit fields
+  const events = await prisma.event.findMany({
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      startsAt: true,
+      endsAt: true,
+      country: true,
+      region: true,
+      city: true,
+      latitude: true,
+      longitude: true,
+      estSize: true,
+      priceBand: true,
+      vibe: true,
+      amenities: true,
+      clothingOptional: true,
+      // Don't select heavy fields unless needed
+    },
+    where: buildOptimizedWhereClause(filters),
+    orderBy: { startsAt: 'asc' },
+    take: filters.limit || 20,
+    skip: ((filters.page || 1) - 1) * (filters.limit || 20),
+  });
+  
+  return events;
+}
+
+// ✅ Use database indexes effectively
+const buildOptimizedWhereClause = (filters: EventSearchFilters) => {
+  const where: any = {};
+  
+  // Use indexed fields first
+  if (filters.country) where.country = filters.country;
+  if (filters.type?.length) where.type = { in: filters.type };
+  if (filters.dateStart || filters.dateEnd) {
+    where.startsAt = {};
+    if (filters.dateStart) where.startsAt.gte = filters.dateStart;
+    if (filters.dateEnd) where.startsAt.lte = filters.dateEnd;
+  }
+  
+  return where;
+};
+```
+
+### Connection Pooling
+```typescript
+// ✅ Optimize database connections
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL,
+    },
+  },
+  log: process.env.NODE_ENV === 'development' ? ['query', 'error'] : ['error'],
+});
+
+// Configure connection pool
+if (process.env.NODE_ENV === 'production') {
+  // Production optimizations
+  prisma.$connect();
+}
+```
+
+## API Performance
+
+### Response Optimization
+```typescript
+// ✅ Optimize API responses
+export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+  
+  try {
+    const params = parseSearchParams(request);
+    
+    // Use Promise.all for parallel operations
+    const [events, facets, total] = await Promise.all([
+      findEvents(params),
+      getFacets(params),
+      countEvents(params),
+    ]);
+    
+    const response = {
+      events: events.map(event => ({
+        id: event.id,
+        name: event.name,
+        type: event.type,
+        startsAt: event.startsAt,
+        endsAt: event.endsAt,
+        country: event.country,
+        region: event.region,
+        city: event.city,
+        // Only include necessary fields
+      })),
+      pagination: {
+        page: params.page,
+        limit: params.limit,
+        total,
+        totalPages: Math.ceil(total / params.limit),
+      },
+      facets,
+    };
+    
+    // Add performance headers
+    const responseTime = Date.now() - startTime;
+    const responseObj = NextResponse.json(response);
+    responseObj.headers.set('X-Response-Time', `${responseTime}ms`);
+    
+    return responseObj;
+  } catch (error) {
+    const responseTime = Date.now() - startTime;
+    console.error(`API Error (${responseTime}ms):`, error);
+    throw error;
+  }
+}
+```
+
+### Caching Strategy
+```typescript
+// ✅ Implement caching layers
+import { Redis } from 'ioredis';
+
+const redis = new Redis(process.env.REDIS_URL);
+
+export async function getCachedEvents(key: string, fetcher: () => Promise<any>) {
+  // Try cache first
+  const cached = await redis.get(key);
+  if (cached) {
+    return JSON.parse(cached);
+  }
+  
+  // Fetch and cache
+  const data = await fetcher();
+  await redis.setex(key, 300, JSON.stringify(data)); // 5 minutes
+  
+  return data;
+}
+
+// ✅ Use HTTP caching headers
+export function addCacheHeaders(response: NextResponse, maxAge: number = 300) {
+  response.headers.set('Cache-Control', `public, max-age=${maxAge}, s-maxage=${maxAge}`);
+  response.headers.set('ETag', generateETag(response.body));
+  return response;
+}
+```
+
+## Frontend Performance
+
+### Component Optimization
+```tsx
+// ✅ Memoize expensive components
+import { memo, useMemo } from 'react';
+
+export const EventCard = memo(function EventCard({ event }: { event: Event }) {
+  const formattedDate = useMemo(() => {
+    return formatDateRange(event.startsAt, event.endsAt);
+  }, [event.startsAt, event.endsAt]);
+  
+  const amenities = useMemo(() => {
+    return event.amenities.slice(0, 3); // Limit displayed amenities
+  }, [event.amenities]);
+  
+  return (
+    <article className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+      <h3 className="font-semibold">{event.name}</h3>
+      <p className="text-sm text-gray-600">{formattedDate}</p>
+      <div className="flex flex-wrap gap-1 mt-2">
+        {amenities.map(amenity => (
+          <span key={amenity} className="text-xs bg-gray-100 px-2 py-1 rounded">
+            {amenity}
+          </span>
+        ))}
+      </div>
+    </article>
+  );
+});
+
+// ✅ Virtual scrolling for large lists
+import { FixedSizeList as List } from 'react-window';
+
+export function VirtualizedEventList({ events }: { events: Event[] }) {
+  const Row = ({ index, style }: { index: number; style: any }) => (
+    <div style={style}>
+      <EventCard event={events[index]} />
+    </div>
+  );
+  
+  return (
+    <List
+      height={600}
+      itemCount={events.length}
+      itemSize={120}
+      width="100%"
+    >
+      {Row}
+    </List>
+  );
+}
+```
+
+### Bundle Optimization
+```typescript
+// next.config.js
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  experimental: {
+    optimizePackageImports: ['@prisma/client', 'typesense'],
+  },
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+      };
+    }
+    return config;
+  },
+  images: {
+    domains: ['example.com'],
+    formats: ['image/webp', 'image/avif'],
+  },
+};
+
+module.exports = nextConfig;
+```
+
+## Performance Monitoring
+
+### Core Web Vitals Tracking
+```tsx
+// lib/analytics.ts
+export function reportWebVitals(metric: any) {
+  if (metric.label === 'web-vital') {
+    console.log(metric);
+    
+    // Send to analytics service
+    if (typeof window !== 'undefined' && window.gtag) {
+      window.gtag('event', metric.name, {
+        value: Math.round(metric.value),
+        event_category: 'Web Vitals',
+        event_label: metric.id,
+        non_interaction: true,
+      });
+    }
+  }
+}
+
+// app/layout.tsx
+import { reportWebVitals } from '@/lib/analytics';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              function reportWebVitals(metric) {
+                console.log(metric);
+              }
+            `,
+          }}
+        />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+### Performance Testing
+```typescript
+// tests/performance/api-performance.test.ts
+import { test, expect } from '@playwright/test';
+
+test('API response time is under 200ms', async ({ request }) => {
+  const startTime = Date.now();
+  const response = await request.get('/api/events?country=DE');
+  const responseTime = Date.now() - startTime;
+  
+  expect(response.status()).toBe(200);
+  expect(responseTime).toBeLessThan(200);
+});
+
+test('Page loads within 2 seconds', async ({ page }) => {
+  const startTime = Date.now();
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+  const loadTime = Date.now() - startTime;
+  
+  expect(loadTime).toBeLessThan(2000);
+});
+
+test('Core Web Vitals meet targets', async ({ page }) => {
+  await page.goto('/');
+  
+  const metrics = await page.evaluate(() => {
+    return new Promise((resolve) => {
+      new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        const vitals = {};
+        
+        entries.forEach((entry) => {
+          if (entry.entryType === 'largest-contentful-paint') {
+            vitals.lcp = entry.startTime;
+          }
+          if (entry.entryType === 'first-input') {
+            vitals.fid = entry.processingStart - entry.startTime;
+          }
+        });
+        
+        resolve(vitals);
+      }).observe({ entryTypes: ['largest-contentful-paint', 'first-input'] });
+    });
+  });
+  
+  expect(metrics.lcp).toBeLessThan(2500);
+  expect(metrics.fid).toBeLessThan(100);
+});
+```

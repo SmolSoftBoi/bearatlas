@@ -1,0 +1,118 @@
+---
+globs: *.ts,*.tsx
+description: TypeScript coding standards and best practices
+---
+
+# TypeScript Standards
+
+## Strict TypeScript Configuration
+- **ALWAYS** use TypeScript strict mode - no exceptions
+- **NEVER** use `any` type - use explicit types or `unknown`
+- **ALWAYS** define return types for functions
+- **ALWAYS** use interfaces for object shapes
+- **PREFER** type aliases for unions and primitives
+
+## Type Safety Rules
+
+### Avoid `any` at all costs
+```typescript
+// ❌ NEVER do this
+function processData(data: any): any {
+  return data.someProperty;
+}
+
+// ✅ ALWAYS do this
+interface ApiData {
+  someProperty: string;
+  count: number;
+}
+
+function processData(data: ApiData): string {
+  return data.someProperty;
+}
+```
+
+### Use proper error handling
+```typescript
+// ✅ Use Result pattern for error handling
+type Result<T, E = Error> = 
+  | { success: true; data: T }
+  | { success: false; error: E };
+
+async function fetchEvent(id: string): Promise<Result<Event>> {
+  try {
+    const event = await prisma.event.findUnique({ where: { id } });
+    if (!event) {
+      return { success: false, error: new Error('Event not found') };
+    }
+    return { success: true, data: event };
+  } catch (error) {
+    return { success: false, error: error as Error };
+  }
+}
+```
+
+### Use generics for reusable code
+```typescript
+// ✅ Generic API response type
+interface ApiResponse<T> {
+  data: T;
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+  error?: string;
+}
+
+// ✅ Generic filter type
+interface FilterOptions<T> {
+  where?: Partial<T>;
+  orderBy?: keyof T;
+  limit?: number;
+  offset?: number;
+}
+```
+
+## Data Model Types
+Reference the data model in [specs/001-build-bearatlas-a/data-model.md](mdc:specs/001-build-bearatlas-a/data-model.md) for all entity types.
+
+### Event Types
+```typescript
+type EventType = 'RUN' | 'WEEK' | 'CRUISE' | 'RESORT' | 'PARTY';
+type SizeBand = 'SMALL' | 'MEDIUM' | 'LARGE' | 'MASSIVE';
+type PriceBand = 'BUDGET' | 'MID_RANGE' | 'PREMIUM' | 'LUXURY';
+type VibeTag = 'dance' | 'relax' | 'fetish' | 'mixed';
+```
+
+### API Types
+```typescript
+interface EventSearchParams {
+  q?: string;
+  dateStart?: string;
+  dateEnd?: string;
+  country?: string;
+  type?: EventType[];
+  vibe?: VibeTag[];
+  amenities?: string[];
+  page?: number;
+  limit?: number;
+}
+```
+
+## Import/Export Standards
+- **ALWAYS** use named exports for functions and classes
+- **PREFER** default exports only for React components
+- **ALWAYS** use absolute imports from project root
+- **GROUP** imports: external libraries, internal modules, relative imports
+
+```typescript
+// ✅ Correct import order
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+
+import { prisma } from '@/lib/db';
+import { validateEventSearch } from '@/lib/validation';
+
+import type { EventSearchParams } from './types';
+```

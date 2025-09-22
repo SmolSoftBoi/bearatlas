@@ -1,0 +1,418 @@
+---
+globs: **/*.ts,**/*.tsx
+description: Security standards and OWASP ASVS Level 1 compliance
+---
+
+# Security Standards (OWASP ASVS Level 1)
+
+## Input Validation and Sanitization
+
+### API Input Validation
+- **ALWAYS** validate all input parameters
+- **ALWAYS** sanitize user input before processing
+- **ALWAYS** use type-safe validation schemas
+- **NEVER** trust client-side validation alone
+
+```typescript
+// ✅ Input validation with Zod
+import { z } from 'zod';
+
+const eventSearchSchema = z.object({
+  q: z.string().max(100).optional(),
+  dateStart: z.string().datetime().optional(),
+  dateEnd: z.string().datetime().optional(),
+  country: z.string().length(2).regex(/^[A-Z]{2}$/).optional(),
+  type: z.array(z.enum(['RUN', 'WEEK', 'CRUISE', 'RESORT', 'PARTY'])).optional(),
+  page: z.coerce.number().int().min(1).max(1000).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const params = eventSearchSchema.parse(Object.fromEntries(searchParams));
+    
+    // Safe to use validated params
+    const results = await searchEvents(params);
+    return NextResponse.json(results);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid parameters', details: error.errors },
+        { status: 400 }
+      );
+    }
+    throw error;
+  }
+}
+```
+
+### SQL Injection Prevention
+```typescript
+// ✅ Use Prisma parameterized queries
+export async function findEventsByCountry(country: string) {
+  // Prisma automatically prevents SQL injection
+  return prisma.event.findMany({
+    where: {
+      country: country, // Safe - Prisma handles parameterization
+    },
+  });
+}
+
+// ❌ NEVER do this (raw SQL without parameterization)
+// const query = `SELECT * FROM events WHERE country = '${country}'`;
+```
+
+### XSS Prevention
+```typescript
+// ✅ Sanitize user input for display
+import DOMPurify from 'isomorphic-dompurify';
+
+export function EventDescription({ description }: { description: string }) {
+  // Sanitize HTML content
+  const sanitizedDescription = DOMPurify.sanitize(description);
+  
+  return (
+    <div 
+      dangerouslySetInnerHTML={{ __html: sanitizedDescription }}
+      className="prose"
+    />
+  );
+}
+
+// ✅ Better approach - avoid dangerouslySetInnerHTML when possible
+export function EventDescription({ description }: { description: string }) {
+  // Escape HTML entities
+  const escapedDescription = description
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+  
+  return <p className="prose">{escapedDescription}</p>;
+}
+```
+
+## Authentication and Authorization
+
+### API Route Protection
+```typescript
+// apps/web/middleware.ts
+import { NextRequest, NextResponse } from 'next/server';
+
+export function middleware(request: NextRequest) {
+  // Rate limiting
+  const rateLimitKey = `rate_limit_${request.ip}`;
+  // Implement rate limiting logic here
+  
+  // CORS headers
+  const response = NextResponse.next();
+  response.headers.set('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || 'http://localhost:3000');
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  // Security headers
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('X-XSS-Protection', '1; mode=block');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.apple-mapkit.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;");
+  
+  return response;
+}
+
+export const config = {
+  matcher: ['/api/:path*'],
+};
+```
+
+### Secret Management
+```typescript
+// ✅ Environment variable validation
+import { z } from 'zod';
+
+const envSchema = z.object({
+  DATABASE_URL: z.string().url(),
+  REDIS_URL: z.string().url(),
+  TYPESENSE_API_KEY: z.string().min(1),
+  APPLE_TEAM_ID: z.string().optional(),
+  APPLE_MAPS_KEY_ID: z.string().optional(),
+  APP_ALLOWED_ORIGIN: z.string().url().default('http://localhost:3000'),
+});
+
+export const env = envSchema.parse(process.env);
+
+// ✅ Apple Maps token generation with proper secret handling
+import jwt from 'jsonwebtoken';
+import fs from 'fs';
+import path from 'path';
+
+export async function generateAppleMapsToken(): Promise<{ token: string; expiresAt: string } | null> {
+  if (!env.APPLE_TEAM_ID || !env.APPLE_MAPS_KEY_ID) {
+    return null; // Graceful degradation
+  }
+  
+  try {
+    // Read private key from secure location
+    const privateKeyPath = path.join(process.cwd(), '.secrets', 'AuthKey.p8');
+    const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
+    
+    const now = Math.floor(Date.now() / 1000);
+    const payload = {
+      iss: env.APPLE_TEAM_ID,
+      iat: now,
+      exp: now + 3600, // 1 hour
+    };
+    
+    const token = jwt.sign(payload, privateKey, {
+      algorithm: 'ES256',
+      header: {
+        kid: env.APPLE_MAPS_KEY_ID,
+        typ: 'JWT',
+      },
+    });
+    
+    return {
+      token,
+      expiresAt: new Date((now + 3600) * 1000).toISOString(),
+    };
+  } catch (error) {
+    console.error('Failed to generate Apple Maps token:', error);
+    return null;
+  }
+}
+```
+
+## Data Protection
+
+### Sensitive Data Handling
+```typescript
+// ✅ Never log sensitive information
+export function logEvent(event: string, data: any) {
+  // Remove sensitive fields before logging
+  const sanitizedData = { ...data };
+  delete sanitizedData.apiKey;
+  delete sanitizedData.password;
+  delete sanitizedData.token;
+  
+  console.log(`[${new Date().toISOString()}] ${event}:`, sanitizedData);
+}
+
+// ✅ Hash sensitive identifiers
+import crypto from 'crypto';
+
+export function hashEventIdentifier(eventData: {
+  name: string;
+  startsAt: Date;
+  country: string;
+}): string {
+  return crypto
+    .createHash('sha1')
+    .update(`${eventData.name}-${eventData.startsAt.toISOString()}-${eventData.country}`)
+    .digest('hex');
+}
+```
+
+### Data Validation in Database Layer
+```typescript
+// ✅ Prisma schema with validation
+model Event {
+  id               String   @id @default(cuid())
+  name             String   @db.VarChar(255)
+  type             EventType
+  startsAt         DateTime
+  endsAt           DateTime
+  country          String   @db.VarChar(2) // ISO country code
+  region           String?  @db.VarChar(100)
+  city             String?  @db.VarChar(100)
+  latitude         Float?   @db.DoublePrecision
+  longitude        Float?   @db.DoublePrecision
+  hash             String   @unique @db.VarChar(40) // SHA1 hash
+  source           String   @db.VarChar(50)
+  lastChecked      DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  // Validation constraints
+  @@check(startsAt < endsAt, "Start date must be before end date")
+  @@check(latitude >= -90 AND latitude <= 90, "Invalid latitude")
+  @@check(longitude >= -180 AND longitude <= 180, "Invalid longitude")
+}
+```
+
+## Error Handling and Information Disclosure
+
+### Secure Error Responses
+```typescript
+// ✅ Generic error responses
+export function handleApiError(error: unknown): NextResponse {
+  console.error('API Error:', error);
+  
+  // Don't expose internal error details
+  return NextResponse.json(
+    {
+      error: 'Internal server error',
+      message: 'An unexpected error occurred',
+    },
+    { status: 500 }
+  );
+}
+
+// ✅ Specific error handling for known cases
+export function handleValidationError(error: z.ZodError): NextResponse {
+  return NextResponse.json(
+    {
+      error: 'Validation failed',
+      details: error.errors.map(err => ({
+        field: err.path.join('.'),
+        message: err.message,
+      })),
+    },
+    { status: 400 }
+  );
+}
+```
+
+### Logging Security Events
+```typescript
+// ✅ Security event logging
+export function logSecurityEvent(event: {
+  type: 'rate_limit_exceeded' | 'invalid_input' | 'unauthorized_access';
+  ip: string;
+  userAgent?: string;
+  details?: any;
+}) {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    level: 'WARN',
+    event: 'SECURITY',
+    type: event.type,
+    ip: event.ip,
+    userAgent: event.userAgent,
+    details: event.details,
+  };
+  
+  // Log to secure logging system
+  console.warn(JSON.stringify(logEntry));
+}
+```
+
+## Content Security Policy
+
+### CSP Implementation
+```typescript
+// apps/web/app/layout.tsx
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <head>
+        <meta httpEquiv="Content-Security-Policy" content="
+          default-src 'self';
+          script-src 'self' 'unsafe-inline' https://cdn.apple-mapkit.com;
+          style-src 'self' 'unsafe-inline';
+          img-src 'self' data: https:;
+          connect-src 'self' https://api.typesense.com;
+          font-src 'self';
+          object-src 'none';
+          base-uri 'self';
+          form-action 'self';
+        " />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+## Rate Limiting
+
+### API Rate Limiting
+```typescript
+// lib/rate-limit.ts
+import { NextRequest } from 'next/server';
+
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+
+export function rateLimit(
+  request: NextRequest,
+  limit: number = 100,
+  windowMs: number = 15 * 60 * 1000 // 15 minutes
+): { success: boolean; remaining: number; resetTime: number } {
+  const ip = request.ip || 'unknown';
+  const now = Date.now();
+  const windowStart = now - windowMs;
+  
+  // Clean up old entries
+  for (const [key, value] of rateLimitMap.entries()) {
+    if (value.resetTime < windowStart) {
+      rateLimitMap.delete(key);
+    }
+  }
+  
+  const current = rateLimitMap.get(ip) || { count: 0, resetTime: now + windowMs };
+  
+  if (current.resetTime < now) {
+    // Reset window
+    current.count = 0;
+    current.resetTime = now + windowMs;
+  }
+  
+  current.count++;
+  rateLimitMap.set(ip, current);
+  
+  const remaining = Math.max(0, limit - current.count);
+  const success = current.count <= limit;
+  
+  if (!success) {
+    logSecurityEvent({
+      type: 'rate_limit_exceeded',
+      ip,
+      userAgent: request.headers.get('user-agent') || undefined,
+      details: { count: current.count, limit },
+    });
+  }
+  
+  return { success, remaining, resetTime: current.resetTime };
+}
+```
+
+## Security Testing
+
+### Security Test Examples
+```typescript
+// tests/security/api-security.test.ts
+import { test, expect } from '@playwright/test';
+
+test('API prevents SQL injection', async ({ request }) => {
+  const maliciousInput = "'; DROP TABLE events; --";
+  
+  const response = await request.get(`/api/events?q=${encodeURIComponent(maliciousInput)}`);
+  
+  // Should not return 500 error (which would indicate SQL injection)
+  expect(response.status()).not.toBe(500);
+  
+  // Should return 400 for invalid input
+  expect(response.status()).toBe(400);
+});
+
+test('API rate limiting works', async ({ request }) => {
+  const requests = Array.from({ length: 150 }, () => 
+    request.get('/api/events')
+  );
+  
+  const responses = await Promise.all(requests);
+  
+  // Some requests should be rate limited
+  const rateLimitedResponses = responses.filter(r => r.status() === 429);
+  expect(rateLimitedResponses.length).toBeGreaterThan(0);
+});
+
+test('Security headers are present', async ({ request }) => {
+  const response = await request.get('/api/events');
+  
+  expect(response.headers()['x-content-type-options']).toBe('nosniff');
+  expect(response.headers()['x-frame-options']).toBe('DENY');
+  expect(response.headers()['x-xss-protection']).toBe('1; mode=block');
+});
+```

@@ -1,0 +1,446 @@
+---
+globs: packages/worker/**/*.ts,packages/worker/prisma/**
+description: Database patterns and Prisma best practices
+---
+
+# Database Patterns and Prisma Best Practices
+
+## Prisma Schema Structure
+Reference the data model in [specs/001-build-bearatlas-a/data-model.md](mdc:specs/001-build-bearatlas-a/data-model.md) for entity definitions.
+
+### Schema Organization
+```prisma
+// packages/worker/prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Source {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  url       String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  events    Event[]
+  
+  @@map("sources")
+}
+
+model Event {
+  id               String   @id @default(cuid())
+  name             String
+  type             EventType
+  startsAt         DateTime
+  endsAt           DateTime
+  durationDays     Int
+  country          String
+  region           String?
+  city             String?
+  latitude         Float?
+  longitude        Float?
+  venues           Json     @default("[]")
+  estSize          SizeBand?
+  priceBand        PriceBand?
+  vibe             Json     @default("[]")
+  accessibility    Json     @default("{}")
+  clothingOptional Boolean  @default(false)
+  amenities        Json     @default("[]")
+  links            Json     @default("{}")
+  source           String
+  sourceId         String?
+  hash             String   @unique
+  lastChecked      DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  sourceRef        Source   @relation(fields: [source], references: [code])
+  crowdReports     CrowdReport[]
+  
+  @@index([startsAt])
+  @@index([country])
+  @@index([type])
+  @@index([hash])
+  @@map("events")
+}
+
+enum EventType {
+  RUN
+  WEEK
+  CRUISE
+  RESORT
+  PARTY
+}
+
+enum SizeBand {
+  SMALL
+  MEDIUM
+  LARGE
+  MASSIVE
+}
+
+enum PriceBand {
+  BUDGET
+  MID_RANGE
+  PREMIUM
+  LUXURY
+}
+```
+
+## Database Connection Patterns
+
+### Prisma Client Setup
+```typescript
+// packages/worker/src/lib/db.ts
+import { PrismaClient } from '@prisma/client';
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
+
+export const prisma = globalForPrisma.prisma ?? new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+});
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+```
+
+### Connection Pooling
+```typescript
+// packages/worker/src/lib/db-pool.ts
+import { Pool } from 'pg';
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+});
+
+export { pool };
+```
+
+## Query Patterns
+
+### Event Queries
+```typescript
+// packages/worker/src/lib/queries/events.ts
+import { prisma } from '@/lib/db';
+import type { Event, EventType, SizeBand, PriceBand } from '@prisma/client';
+
+export interface EventSearchFilters {
+  q?: string;
+  dateStart?: Date;
+  dateEnd?: Date;
+  country?: string;
+  region?: string;
+  city?: string;
+  type?: EventType[];
+  sizeBand?: SizeBand[];
+  priceBand?: PriceBand[];
+  vibe?: string[];
+  amenities?: string[];
+  clothingOptional?: boolean;
+  accessibility?: string[];
+}
+
+export async function findEvents(filters: EventSearchFilters, pagination: {
+  page: number;
+  limit: number;
+}) {
+  const where: any = {};
+
+  // Date range filtering
+  if (filters.dateStart || filters.dateEnd) {
+    where.startsAt = {};
+    if (filters.dateStart) where.startsAt.gte = filters.dateStart;
+    if (filters.dateEnd) where.startsAt.lte = filters.dateEnd;
+  }
+
+  // Location filtering
+  if (filters.country) where.country = filters.country;
+  if (filters.region) where.region = filters.region;
+  if (filters.city) where.city = filters.city;
+
+  // Enum filtering
+  if (filters.type?.length) where.type = { in: filters.type };
+  if (filters.sizeBand?.length) where.estSize = { in: filters.sizeBand };
+  if (filters.priceBand?.length) where.priceBand = { in: filters.priceBand };
+
+  // Boolean filtering
+  if (filters.clothingOptional !== undefined) {
+    where.clothingOptional = filters.clothingOptional;
+  }
+
+  // JSON array filtering (for vibe and amenities)
+  if (filters.vibe?.length) {
+    where.vibe = {
+      array_contains: filters.vibe,
+    };
+  }
+
+  if (filters.amenities?.length) {
+    where.amenities = {
+      array_contains: filters.amenities,
+    };
+  }
+
+  const [events, total] = await Promise.all([
+    prisma.event.findMany({
+      where,
+      include: {
+        sourceRef: true,
+        _count: {
+          select: { crowdReports: true },
+        },
+      },
+      orderBy: { startsAt: 'asc' },
+      skip: (pagination.page - 1) * pagination.limit,
+      take: pagination.limit,
+    }),
+    prisma.event.count({ where }),
+  ]);
+
+  return {
+    events,
+    pagination: {
+      page: pagination.page,
+      limit: pagination.limit,
+      total,
+      totalPages: Math.ceil(total / pagination.limit),
+    },
+  };
+}
+```
+
+### Event Creation with Deduplication
+```typescript
+// packages/worker/src/lib/queries/events.ts
+import crypto from 'crypto';
+
+export async function createEventWithDeduplication(eventData: {
+  name: string;
+  type: EventType;
+  startsAt: Date;
+  endsAt: Date;
+  country: string;
+  source: string;
+  // ... other fields
+}) {
+  // Generate hash for deduplication
+  const hash = crypto
+    .createHash('sha1')
+    .update(`${eventData.name}-${eventData.startsAt.toISOString()}-${eventData.country}`)
+    .digest('hex');
+
+  // Check for existing event with same hash
+  const existingEvent = await prisma.event.findUnique({
+    where: { hash },
+  });
+
+  if (existingEvent) {
+    // Update existing event with new data
+    return prisma.event.update({
+      where: { id: existingEvent.id },
+      data: {
+        ...eventData,
+        lastChecked: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+  }
+
+  // Create new event
+  return prisma.event.create({
+    data: {
+      ...eventData,
+      hash,
+      durationDays: Math.ceil(
+        (eventData.endsAt.getTime() - eventData.startsAt.getTime()) / (1000 * 60 * 60 * 24)
+      ),
+    },
+  });
+}
+```
+
+## Migration Patterns
+
+### Migration Files
+```typescript
+// packages/worker/prisma/migrations/001_init/migration.sql
+-- CreateEnum
+CREATE TYPE "EventType" AS ENUM ('RUN', 'WEEK', 'CRUISE', 'RESORT', 'PARTY');
+CREATE TYPE "SizeBand" AS ENUM ('SMALL', 'MEDIUM', 'LARGE', 'MASSIVE');
+CREATE TYPE "PriceBand" AS ENUM ('BUDGET', 'MID_RANGE', 'PREMIUM', 'LUXURY');
+
+-- CreateTable
+CREATE TABLE "sources" (
+    "id" TEXT NOT NULL,
+    "code" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "url" TEXT NOT NULL,
+    "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "sources_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "sources_code_key" ON "sources"("code");
+```
+
+### Seed Data
+```typescript
+// packages/worker/prisma/seed.ts
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function main() {
+  // Seed sources
+  const sources = [
+    {
+      code: 'BEARWEEK',
+      name: 'Bear Week Directory',
+      url: 'https://bearweek.com',
+      enabled: true,
+    },
+    {
+      code: 'BEARRUN',
+      name: 'Bear Run Events',
+      url: 'https://bearrun.com',
+      enabled: true,
+    },
+  ];
+
+  for (const source of sources) {
+    await prisma.source.upsert({
+      where: { code: source.code },
+      update: source,
+      create: source,
+    });
+  }
+
+  // Seed sample events
+  const sampleEvents = [
+    {
+      name: 'Berlin Bear Week 2025',
+      type: 'WEEK' as const,
+      startsAt: new Date('2025-03-15'),
+      endsAt: new Date('2025-03-22'),
+      country: 'DE',
+      region: 'Berlin',
+      city: 'Berlin',
+      source: 'BEARWEEK',
+      vibe: ['dance', 'relax'],
+      amenities: ['sauna', 'pool', 'bar'],
+      clothingOptional: true,
+      accessibility: { wheelchair: true, stepFree: true },
+    },
+  ];
+
+  for (const event of sampleEvents) {
+    await prisma.event.upsert({
+      where: { 
+        name_startsAt: {
+          name: event.name,
+          startsAt: event.startsAt,
+        }
+      },
+      update: event,
+      create: {
+        ...event,
+        durationDays: 7,
+        hash: crypto.createHash('sha1')
+          .update(`${event.name}-${event.startsAt.toISOString()}-${event.country}`)
+          .digest('hex'),
+      },
+    });
+  }
+}
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
+```
+
+## Transaction Patterns
+
+### Batch Operations
+```typescript
+// packages/worker/src/lib/queries/events.ts
+export async function batchCreateEvents(events: any[]) {
+  return prisma.$transaction(async (tx) => {
+    const results = [];
+    
+    for (const eventData of events) {
+      const hash = crypto
+        .createHash('sha1')
+        .update(`${eventData.name}-${eventData.startsAt}-${eventData.country}`)
+        .digest('hex');
+
+      const result = await tx.event.upsert({
+        where: { hash },
+        update: {
+          ...eventData,
+          lastChecked: new Date(),
+          updatedAt: new Date(),
+        },
+        create: {
+          ...eventData,
+          hash,
+          durationDays: Math.ceil(
+            (new Date(eventData.endsAt).getTime() - new Date(eventData.startsAt).getTime()) / (1000 * 60 * 60 * 24)
+          ),
+        },
+      });
+      
+      results.push(result);
+    }
+    
+    return results;
+  });
+}
+```
+
+## Error Handling
+
+### Database Error Handling
+```typescript
+// packages/worker/src/lib/errors/database.ts
+import { Prisma } from '@prisma/client';
+
+export function handleDatabaseError(error: unknown): never {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    switch (error.code) {
+      case 'P2002':
+        throw new Error('Unique constraint violation');
+      case 'P2025':
+        throw new Error('Record not found');
+      case 'P2003':
+        throw new Error('Foreign key constraint violation');
+      default:
+        throw new Error(`Database error: ${error.message}`);
+    }
+  }
+  
+  if (error instanceof Prisma.PrismaClientUnknownRequestError) {
+    throw new Error('Unknown database error');
+  }
+  
+  throw error;
+}
+```

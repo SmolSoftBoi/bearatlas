@@ -1,0 +1,334 @@
+---
+globs: apps/web/**/*.ts,apps/web/**/*.tsx
+description: Next.js 15 App Router patterns and best practices
+---
+
+# Next.js 15 App Router Patterns
+
+## App Router Structure
+Follow the App Router conventions in [apps/web/app/](mdc:apps/web/app/):
+
+```
+app/
+├── (site)/          # Route group for public pages
+│   ├── page.tsx     # Home page
+│   └── layout.tsx   # Site layout
+├── api/             # API routes
+│   ├── events/
+│   │   └── route.ts # GET /api/events
+│   └── calendar/
+│       └── route.ts # GET /api/calendar
+├── map/             # Map view page
+├── list/            # List view page
+├── calendar/        # Calendar view page
+├── event/[id]/      # Dynamic event detail page
+└── layout.tsx       # Root layout
+```
+
+## API Route Patterns
+
+### Event Search API
+```typescript
+// apps/web/app/api/events/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { searchEvents } from '@/lib/search';
+
+const searchSchema = z.object({
+  q: z.string().optional(),
+  dateStart: z.string().optional(),
+  dateEnd: z.string().optional(),
+  country: z.string().optional(),
+  type: z.array(z.enum(['RUN', 'WEEK', 'CRUISE', 'RESORT', 'PARTY'])).optional(),
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(100).default(20),
+});
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const params = searchSchema.parse(Object.fromEntries(searchParams));
+    
+    const result = await searchEvents(params);
+    
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid parameters', details: error.errors },
+        { status: 400 }
+      );
+    }
+    
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+### Apple Maps Token API
+```typescript
+// apps/web/app/api/apple-maps-token/route.ts
+import { NextResponse } from 'next/server';
+import { generateAppleMapsToken } from '@/lib/apple-maps';
+
+export async function GET() {
+  try {
+    const token = await generateAppleMapsToken();
+    
+    if (!token) {
+      return NextResponse.json(
+        { 
+          error: 'Apple Maps not configured',
+          message: 'Please configure Apple Developer credentials'
+        },
+        { status: 503 }
+      );
+    }
+    
+    return NextResponse.json(token);
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Failed to generate token' },
+      { status: 500 }
+    );
+  }
+}
+```
+
+## Page Component Patterns
+
+### Server Components (Default)
+```typescript
+// apps/web/app/(site)/page.tsx
+import { Suspense } from 'react';
+import { FiltersPanel } from '@/components/FiltersPanel';
+import { EventList } from '@/components/EventList';
+import { searchEvents } from '@/lib/search';
+
+interface HomePageProps {
+  searchParams: {
+    q?: string;
+    country?: string;
+    type?: string;
+  };
+}
+
+export default async function HomePage({ searchParams }: HomePageProps) {
+  const events = await searchEvents(searchParams);
+  
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold mb-8">BearAtlas</h1>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <aside className="lg:col-span-1">
+          <Suspense fallback={<div>Loading filters...</div>}>
+            <FiltersPanel />
+          </Suspense>
+        </aside>
+        
+        <main className="lg:col-span-3">
+          <Suspense fallback={<div>Loading events...</div>}>
+            <EventList events={events} />
+          </Suspense>
+        </main>
+      </div>
+    </div>
+  );
+}
+```
+
+### Client Components (When Needed)
+```typescript
+// apps/web/components/MapCanvas.tsx
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { MapKit } from 'mapkit';
+
+interface MapCanvasProps {
+  events: Event[];
+  onEventSelect?: (event: Event) => void;
+}
+
+export function MapCanvas({ events, onEventSelect }: MapCanvasProps) {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const [map, setMap] = useState<MapKit.Map | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Fetch Apple Maps token
+    fetch('/api/apple-maps-token')
+      .then(res => res.json())
+      .then(data => {
+        if (data.token) {
+          setToken(data.token);
+        }
+      });
+  }, []);
+
+  useEffect(() => {
+    if (token && mapRef.current && !map) {
+      MapKit.init({
+        authorizationCallback: () => token,
+      });
+      
+      const newMap = new MapKit.Map(mapRef.current);
+      setMap(newMap);
+    }
+  }, [token, map]);
+
+  // ... rest of component logic
+}
+```
+
+## Data Fetching Patterns
+
+### Server-Side Data Fetching
+```typescript
+// lib/search.ts
+import { prisma } from '@/lib/db';
+import { typesense } from '@/lib/typesense';
+
+export async function searchEvents(params: EventSearchParams) {
+  // Use Typesense for complex search
+  const searchResult = await typesense
+    .collections('events')
+    .documents()
+    .search({
+      q: params.q || '*',
+      query_by: 'name,description',
+      filter_by: buildFilterQuery(params),
+      sort_by: 'startsAt:asc',
+      per_page: params.limit,
+      page: params.page,
+    });
+
+  return {
+    events: searchResult.hits?.map(hit => hit.document) || [],
+    pagination: {
+      page: params.page,
+      limit: params.limit,
+      total: searchResult.found || 0,
+      totalPages: Math.ceil((searchResult.found || 0) / params.limit),
+    },
+    facets: searchResult.facet_counts || [],
+  };
+}
+```
+
+### Client-Side Data Fetching
+```typescript
+// hooks/useEvents.ts
+import { useQuery } from '@tanstack/react-query';
+
+export function useEvents(params: EventSearchParams) {
+  return useQuery({
+    queryKey: ['events', params],
+    queryFn: async () => {
+      const searchParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          if (Array.isArray(value)) {
+            value.forEach(v => searchParams.append(key, v));
+          } else {
+            searchParams.set(key, String(value));
+          }
+        }
+      });
+      
+      const response = await fetch(`/api/events?${searchParams}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch events');
+      }
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+```
+
+## Error Handling Patterns
+
+### Error Boundaries
+```typescript
+// components/ErrorBoundary.tsx
+'use client';
+
+import { Component, ReactNode } from 'react';
+
+interface Props {
+  children: ReactNode;
+  fallback?: ReactNode;
+}
+
+interface State {
+  hasError: boolean;
+  error?: Error;
+}
+
+export class ErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('Error caught by boundary:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || (
+        <div className="p-4 border border-red-200 rounded-lg bg-red-50">
+          <h2 className="text-lg font-semibold text-red-800">Something went wrong</h2>
+          <p className="text-red-600">Please try refreshing the page.</p>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+```
+
+## Performance Optimization
+
+### Dynamic Imports
+```typescript
+// Lazy load heavy components
+import dynamic from 'next/dynamic';
+
+const MapCanvas = dynamic(() => import('@/components/MapCanvas'), {
+  loading: () => <div>Loading map...</div>,
+  ssr: false, // Disable SSR for client-only components
+});
+
+const TripWizard = dynamic(() => import('@/components/TripWizard'), {
+  loading: () => <div>Loading wizard...</div>,
+});
+```
+
+### Metadata and SEO
+```typescript
+// app/(site)/page.tsx
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'BearAtlas - Global Bear Travel Index',
+  description: 'Discover gay bear travel experiences worldwide. Find bear weeks, runs, cruises, and resorts with comprehensive filtering.',
+  keywords: ['bear travel', 'gay travel', 'bear week', 'bear run', 'travel index'],
+  openGraph: {
+    title: 'BearAtlas - Global Bear Travel Index',
+    description: 'Discover gay bear travel experiences worldwide.',
+    type: 'website',
+  },
+};
+```

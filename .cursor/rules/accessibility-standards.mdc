@@ -1,0 +1,377 @@
+---
+globs: apps/web/**/*.tsx,apps/web/**/*.ts
+description: Accessibility standards and WCAG 2.1 AA compliance
+---
+
+# Accessibility Standards (WCAG 2.1 AA)
+
+## Core Accessibility Principles
+
+### Semantic HTML
+- **ALWAYS** use semantic HTML elements (`<main>`, `<nav>`, `<section>`, `<article>`, `<header>`, `<footer>`)
+- **ALWAYS** use proper heading hierarchy (h1 → h2 → h3, no skipping levels)
+- **ALWAYS** provide meaningful alt text for images
+- **ALWAYS** use descriptive link text (avoid "click here", "read more")
+
+```tsx
+// ✅ Correct semantic structure
+export function EventCard({ event }: { event: Event }) {
+  return (
+    <article className="border rounded-lg p-4">
+      <header>
+        <h3 className="text-lg font-semibold">
+          <a href={`/event/${event.id}`} className="hover:underline focus:ring-2 focus:ring-blue-500">
+            {event.name}
+          </a>
+        </h3>
+        <p className="text-sm text-gray-600">
+          {event.type} • {event.country}
+        </p>
+      </header>
+      
+      <div className="mt-2">
+        <time dateTime={event.startsAt.toISOString()}>
+          {formatDate(event.startsAt)}
+        </time>
+        <span className="mx-2">to</span>
+        <time dateTime={event.endsAt.toISOString()}>
+          {formatDate(event.endsAt)}
+        </time>
+      </div>
+      
+      {event.description && (
+        <p className="mt-2 text-gray-700">{event.description}</p>
+      )}
+    </article>
+  );
+}
+```
+
+### Keyboard Navigation
+- **ALWAYS** ensure all interactive elements are keyboard accessible
+- **ALWAYS** provide visible focus indicators
+- **ALWAYS** implement logical tab order
+- **ALWAYS** provide keyboard shortcuts for common actions
+
+```tsx
+// ✅ Keyboard accessible component
+export function FiltersPanel() {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      setIsOpen(false);
+    }
+  };
+  
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        onKeyDown={handleKeyDown}
+        aria-expanded={isOpen}
+        aria-haspopup="true"
+        className="focus:ring-2 focus:ring-blue-500 focus:outline-none"
+      >
+        Filters {isOpen ? '▼' : '▶'}
+      </button>
+      
+      {isOpen && (
+        <div
+          role="menu"
+          aria-label="Filter options"
+          className="absolute top-full left-0 mt-2 p-4 bg-white border rounded-lg shadow-lg"
+        >
+          {/* Filter options */}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+### ARIA Labels and Descriptions
+- **ALWAYS** provide ARIA labels for form controls
+- **ALWAYS** use ARIA descriptions for complex interactions
+- **ALWAYS** provide live regions for dynamic content updates
+- **ALWAYS** use proper ARIA roles for custom components
+
+```tsx
+// ✅ Proper ARIA usage
+export function SearchForm() {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<Event[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  return (
+    <form role="search" aria-label="Search events">
+      <div className="relative">
+        <label htmlFor="search-input" className="sr-only">
+          Search for events
+        </label>
+        <input
+          id="search-input"
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search events..."
+          aria-describedby="search-help"
+          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+        />
+        <div id="search-help" className="sr-only">
+          Enter keywords to search for events by name, location, or type
+        </div>
+      </div>
+      
+      {/* Loading state */}
+      {isLoading && (
+        <div role="status" aria-live="polite" className="sr-only">
+          Searching for events...
+        </div>
+      )}
+      
+      {/* Results */}
+      <div
+        role="region"
+        aria-label="Search results"
+        aria-live="polite"
+        aria-atomic="false"
+      >
+        {results.length > 0 && (
+          <p className="text-sm text-gray-600">
+            Found {results.length} events
+          </p>
+        )}
+      </div>
+    </form>
+  );
+}
+```
+
+## Color and Contrast
+
+### Color Contrast Requirements
+- **ALWAYS** ensure 4.5:1 contrast ratio for normal text
+- **ALWAYS** ensure 3:1 contrast ratio for large text (18pt+ or 14pt+ bold)
+- **NEVER** rely on color alone to convey information
+- **ALWAYS** provide alternative indicators (icons, text, patterns)
+
+```tsx
+// ✅ Color contrast compliant
+export function EventTypeBadge({ type }: { type: EventType }) {
+  const getTypeInfo = (type: EventType) => {
+    switch (type) {
+      case 'WEEK':
+        return { label: 'Bear Week', color: 'bg-blue-600 text-white' };
+      case 'RUN':
+        return { label: 'Bear Run', color: 'bg-green-600 text-white' };
+      case 'CRUISE':
+        return { label: 'Bear Cruise', color: 'bg-purple-600 text-white' };
+      default:
+        return { label: type, color: 'bg-gray-600 text-white' };
+    }
+  };
+  
+  const { label, color } = getTypeInfo(type);
+  
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${color}`}
+      role="img"
+      aria-label={`Event type: ${label}`}
+    >
+      <span className="sr-only">Event type: </span>
+      {label}
+    </span>
+  );
+}
+```
+
+### Focus Indicators
+```tsx
+// ✅ Visible focus indicators
+export function InteractiveButton({ children, ...props }: ButtonProps) {
+  return (
+    <button
+      {...props}
+      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none transition-colors"
+    >
+      {children}
+    </button>
+  );
+}
+```
+
+## Form Accessibility
+
+### Form Labels and Validation
+```tsx
+// ✅ Accessible form with validation
+export function EventSearchForm() {
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  return (
+    <form className="space-y-4">
+      <div>
+        <label htmlFor="date-start" className="block text-sm font-medium text-gray-700">
+          Start Date
+        </label>
+        <input
+          id="date-start"
+          type="date"
+          aria-describedby={errors.dateStart ? 'date-start-error' : undefined}
+          aria-invalid={!!errors.dateStart}
+          className={`mt-1 block w-full border rounded-lg px-3 py-2 ${
+            errors.dateStart ? 'border-red-500' : 'border-gray-300'
+          } focus:ring-2 focus:ring-blue-500`}
+        />
+        {errors.dateStart && (
+          <p id="date-start-error" role="alert" className="mt-1 text-sm text-red-600">
+            {errors.dateStart}
+          </p>
+        )}
+      </div>
+      
+      <fieldset>
+        <legend className="text-sm font-medium text-gray-700">
+          Event Types
+        </legend>
+        <div className="mt-2 space-y-2">
+          {['WEEK', 'RUN', 'CRUISE', 'RESORT', 'PARTY'].map((type) => (
+            <label key={type} className="flex items-center">
+              <input
+                type="checkbox"
+                value={type}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <span className="ml-2 text-sm text-gray-700">{type}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+    </form>
+  );
+}
+```
+
+## Dynamic Content
+
+### Loading States
+```tsx
+// ✅ Accessible loading states
+export function EventList({ events, isLoading }: { events: Event[], isLoading: boolean }) {
+  if (isLoading) {
+    return (
+      <div role="status" aria-live="polite">
+        <div className="sr-only">Loading events...</div>
+        <div className="animate-pulse space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-20 bg-gray-200 rounded-lg"></div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  
+  if (events.length === 0) {
+    return (
+      <div role="status" aria-live="polite">
+        <p className="text-center text-gray-500 py-8">
+          No events found matching your criteria.
+        </p>
+      </div>
+    );
+  }
+  
+  return (
+    <ul role="list" aria-label="Event search results">
+      {events.map((event) => (
+        <li key={event.id}>
+          <EventCard event={event} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### Error Handling
+```tsx
+// ✅ Accessible error handling
+export function ErrorBoundary({ children }: { children: React.ReactNode }) {
+  const [hasError, setHasError] = useState(false);
+  
+  if (hasError) {
+    return (
+      <div
+        role="alert"
+        aria-live="assertive"
+        className="p-4 border border-red-200 rounded-lg bg-red-50"
+      >
+        <h2 className="text-lg font-semibold text-red-800">
+          Something went wrong
+        </h2>
+        <p className="text-red-600 mt-1">
+          We encountered an error while loading the page. Please try refreshing.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:ring-2 focus:ring-red-500"
+        >
+          Refresh Page
+        </button>
+      </div>
+    );
+  }
+  
+  return children;
+}
+```
+
+## Testing Accessibility
+
+### Automated Testing
+```typescript
+// tests/accessibility/search-page.test.ts
+import { test, expect } from '@playwright/test';
+
+test('search page is accessible', async ({ page }) => {
+  await page.goto('/');
+  
+  // Check for proper heading structure
+  await expect(page.locator('h1')).toBeVisible();
+  
+  // Check keyboard navigation
+  await page.keyboard.press('Tab');
+  await expect(page.locator('input[type="search"]')).toBeFocused();
+  
+  // Check ARIA labels
+  await expect(page.locator('form[role="search"]')).toBeVisible();
+  await expect(page.locator('input[aria-describedby]')).toBeVisible();
+  
+  // Check color contrast (basic check)
+  const searchButton = page.locator('button[type="submit"]');
+  const buttonColor = await searchButton.evaluate((el) => {
+    const styles = window.getComputedStyle(el);
+    return {
+      backgroundColor: styles.backgroundColor,
+      color: styles.color,
+    };
+  });
+  
+  // Verify button has sufficient contrast
+  expect(buttonColor.backgroundColor).not.toBe('transparent');
+  expect(buttonColor.color).not.toBe('transparent');
+});
+```
+
+### Manual Testing Checklist
+- [ ] All interactive elements are keyboard accessible
+- [ ] Focus indicators are visible and clear
+- [ ] Tab order is logical and intuitive
+- [ ] Screen reader can navigate and understand content
+- [ ] Color contrast meets WCAG AA standards
+- [ ] Text can be resized up to 200% without horizontal scrolling
+- [ ] No content flashes more than 3 times per second
+- [ ] Error messages are clearly associated with form fields
+- [ ] Dynamic content updates are announced to screen readers

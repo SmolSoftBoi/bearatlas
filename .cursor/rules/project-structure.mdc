@@ -1,0 +1,51 @@
+---
+alwaysApply: true
+description: BearAtlas project structure and architecture guide
+---
+
+# BearAtlas Project Structure
+
+## Monorepo Architecture
+This is a Yarn workspaces monorepo with the following structure:
+
+- **apps/web/**: Next.js 15 frontend application with App Router
+- **packages/worker/**: Node.js 22 background worker with BullMQ
+- **Root configs**: Shared TypeScript, ESLint, Prettier configurations
+
+## Key Files and Directories
+
+### Frontend (apps/web/)
+- [apps/web/app/](mdc:apps/web/app/) - Next.js App Router pages and API routes
+- [apps/web/components/](mdc:apps/web/components/) - Reusable React components
+- [apps/web/lib/](mdc:apps/web/lib/) - Utility functions and configurations
+- [apps/web/middleware.ts](mdc:apps/web/middleware.ts) - Next.js middleware for API protection
+
+### Backend (packages/worker/)
+- [packages/worker/src/](mdc:packages/worker/src/) - Worker source code
+- [packages/worker/prisma/](mdc:packages/worker/prisma/) - Database schema and migrations
+- [packages/worker/src/jobs/](mdc:packages/worker/src/jobs/) - BullMQ job definitions
+- [packages/worker/src/adapters/](mdc:packages/worker/src/adapters/) - Data source adapters
+
+### Configuration
+- [package.json](mdc:package.json) - Root workspace configuration
+- [docker-compose.yml](mdc:docker-compose.yml) - Development services
+- [.devcontainer/](mdc:.devcontainer/) - Dev Container configuration
+- [.env.example](mdc:.env.example) - Environment variables template
+
+### Documentation
+- [specs/001-build-bearatlas-a/](mdc:specs/001-build-bearatlas-a/) - Feature specification and tasks
+- [.specify/memory/constitution.md](mdc:.specify/memory/constitution.md) - Project constitution
+
+## Technology Stack
+- **Frontend**: Next.js 15, TypeScript, Apple MapKit JS
+- **Backend**: Node.js 22, Prisma, BullMQ, Redis
+- **Database**: PostgreSQL 16, Typesense 0.25
+- **Testing**: Vitest, Playwright
+- **Code Quality**: ESLint, Prettier
+
+## Development Workflow
+1. All code must be TypeScript with strict mode
+2. Tests must be written before implementation (TDD)
+3. All changes must pass ESLint and Prettier checks
+4. Use conventional commits for all commits
+5. Follow the task breakdown in [specs/001-build-bearatlas-a/tasks.md](mdc:specs/001-build-bearatlas-a/tasks.md)

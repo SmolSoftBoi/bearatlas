@@ -1,0 +1,203 @@
+---
+globs: *.test.ts,*.test.tsx,*.spec.ts,*.spec.tsx
+description: Testing standards and best practices
+---
+
+# Testing Standards
+
+## Test-Driven Development (TDD)
+- **ALWAYS** write tests before implementation
+- **ALWAYS** make tests fail first, then implement to make them pass
+- **NEVER** skip writing tests for new functionality
+- **ALWAYS** maintain high test coverage (>80%)
+
+## Testing Framework Setup
+- **Unit Tests**: Use Vitest for fast unit testing
+- **E2E Tests**: Use Playwright for end-to-end testing
+- **Contract Tests**: Test API endpoints against OpenAPI specs
+- **Accessibility Tests**: Ensure WCAG 2.1 AA compliance
+
+## Test Structure and Naming
+
+### Test File Naming
+```
+tests/
+├── unit/           # Unit tests for individual functions/components
+├── integration/    # Integration tests for workflows
+├── contract/       # API contract tests
+├── accessibility/  # A11y tests
+└── performance/    # Performance tests
+```
+
+### Test Naming Convention
+```typescript
+// ✅ Use descriptive test names
+describe('EventSearchAPI', () => {
+  describe('GET /api/events', () => {
+    it('should return events matching search criteria', async () => {
+      // test implementation
+    });
+
+    it('should return 400 for invalid date range', async () => {
+      // test implementation
+    });
+
+    it('should handle empty results gracefully', async () => {
+      // test implementation
+    });
+  });
+});
+```
+
+## Unit Testing Best Practices
+
+### Test Structure (AAA Pattern)
+```typescript
+it('should filter events by country', async () => {
+  // Arrange
+  const events = [
+    { id: '1', country: 'DE', name: 'Berlin Bear Week' },
+    { id: '2', country: 'US', name: 'San Francisco Run' }
+  ];
+  const filter = { country: 'DE' };
+
+  // Act
+  const result = filterEventsByCountry(events, filter);
+
+  // Assert
+  expect(result).toHaveLength(1);
+  expect(result[0].country).toBe('DE');
+});
+```
+
+### Mocking Guidelines
+```typescript
+// ✅ Mock external dependencies
+import { vi } from 'vitest';
+
+const mockPrisma = {
+  event: {
+    findMany: vi.fn(),
+    findUnique: vi.fn(),
+  },
+} as any;
+
+vi.mock('@/lib/db', () => ({
+  prisma: mockPrisma,
+}));
+```
+
+## Integration Testing
+
+### API Testing
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('event search API returns valid response', async ({ request }) => {
+  const response = await request.get('/api/events?country=DE&type=WEEK');
+  
+  expect(response.status()).toBe(200);
+  
+  const data = await response.json();
+  expect(data).toHaveProperty('events');
+  expect(data).toHaveProperty('pagination');
+  expect(Array.isArray(data.events)).toBe(true);
+});
+```
+
+### Database Testing
+```typescript
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { prisma } from '@/lib/db';
+
+describe('Event Model', () => {
+  beforeEach(async () => {
+    // Setup test data
+    await prisma.event.create({
+      data: {
+        name: 'Test Event',
+        type: 'WEEK',
+        startsAt: new Date('2025-03-01'),
+        endsAt: new Date('2025-03-07'),
+        country: 'DE',
+        // ... other required fields
+      },
+    });
+  });
+
+  afterEach(async () => {
+    // Cleanup test data
+    await prisma.event.deleteMany();
+  });
+
+  it('should create event with valid data', async () => {
+    const event = await prisma.event.findFirst({
+      where: { name: 'Test Event' }
+    });
+    
+    expect(event).toBeDefined();
+    expect(event?.country).toBe('DE');
+  });
+});
+```
+
+## Accessibility Testing
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('search page is accessible', async ({ page }) => {
+  await page.goto('/');
+  
+  // Check for proper heading structure
+  await expect(page.locator('h1')).toBeVisible();
+  
+  // Check keyboard navigation
+  await page.keyboard.press('Tab');
+  await expect(page.locator('input[type="search"]')).toBeFocused();
+  
+  // Check ARIA labels
+  await expect(page.locator('button[aria-label="Search"]')).toBeVisible();
+});
+```
+
+## Performance Testing
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('page loads within performance budget', async ({ page }) => {
+  const startTime = Date.now();
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+  const loadTime = Date.now() - startTime;
+  
+  // Core Web Vitals targets
+  expect(loadTime).toBeLessThan(2000); // <2s page load
+  
+  // Check for performance metrics
+  const metrics = await page.evaluate(() => {
+    return {
+      lcp: performance.getEntriesByType('largest-contentful-paint')[0]?.startTime,
+      fid: performance.getEntriesByType('first-input')[0]?.processingStart,
+    };
+  });
+  
+  expect(metrics.lcp).toBeLessThan(2500); // LCP <2.5s
+});
+```
+
+## Contract Testing
+Reference API contracts in [specs/001-build-bearatlas-a/contracts/](mdc:specs/001-build-bearatlas-a/contracts/) for contract tests.
+
+```typescript
+import { test, expect } from 'vitest';
+import { eventsSearchSchema } from './schemas/events-search';
+
+test('events search API matches OpenAPI contract', async () => {
+  const response = await fetch('/api/events?country=DE');
+  const data = await response.json();
+  
+  // Validate against OpenAPI schema
+  const validation = eventsSearchSchema.safeParse(data);
+  expect(validation.success).toBe(true);
+});
+```
